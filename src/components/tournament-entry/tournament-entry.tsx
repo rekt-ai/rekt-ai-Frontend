@@ -1,19 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Brain, Trophy, Users } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
-import { tournaments } from '@/types/tournament';
+import { tournaments } from "@/types/tournament";
+import Dropzone from "./DropZone";
 
 interface TournamentEntryProps {
   tournamentId: string;
 }
 
-export default function TournamentEntry({ tournamentId }: TournamentEntryProps) {
-  const [predictionValue, setPredictionValue] = useState('');
+export default function TournamentEntry({
+  tournamentId,
+}: TournamentEntryProps) {
+  const [predictionValue, setPredictionValue] = useState("");
   const [confidence, setConfidence] = useState(50);
-  
-  const tournament = tournaments.find(t => t.id === tournamentId);
+
+  const tournament = tournaments.find((t) => t.id === tournamentId);
 
   if (!tournament) {
     return <div>Tournament not found</div>;
@@ -24,12 +27,16 @@ export default function TournamentEntry({ tournamentId }: TournamentEntryProps) 
       <Card className="max-w-2xl mx-auto border-slate-light/10 bg-gradient-to-b from-card to-card/50">
         <div className="absolute inset-0 bg-blockchain-grid opacity-5"></div>
         <CardHeader className="border-b border-slate-light/10 bg-cyber-glow">
-          <CardTitle className="font-mono text-slate-light">{tournament.title}</CardTitle>
+          <CardTitle className="font-mono text-slate-light">
+            {tournament.title}
+          </CardTitle>
         </CardHeader>
         <CardContent className="p-6 space-y-6">
           <div className="grid gap-6">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-light">Your Prediction</label>
+              <label className="text-sm font-medium text-slate-light">
+                Your Prediction
+              </label>
               <div className="flex gap-2">
                 <input
                   type="number"
@@ -38,12 +45,16 @@ export default function TournamentEntry({ tournamentId }: TournamentEntryProps) 
                   className="flex-1 rounded-md border border-slate-light/10 bg-slate-dark/10 p-2 font-mono text-slate-light focus:border-slate-light focus:outline-none"
                   placeholder={tournament.placeholder}
                 />
-                <span className="flex items-center font-mono text-slate-light">{tournament.currency}</span>
+                <span className="flex items-center font-mono text-slate-light">
+                  {tournament.currency}
+                </span>
               </div>
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-light">Confidence Level</label>
+              <label className="text-sm font-medium text-slate-light">
+                Confidence Level
+              </label>
               <input
                 type="range"
                 min="0"
@@ -63,26 +74,33 @@ export default function TournamentEntry({ tournamentId }: TournamentEntryProps) 
           <div className="grid grid-cols-3 gap-4 text-sm">
             <div className="flex flex-col items-center space-y-2 rounded-lg border border-slate-light/10 bg-slate-dark/10 p-3">
               <Trophy className="h-4 w-4 text-slate-light" />
-              <span className="font-mono text-slate-light">${tournament.prizePool.toLocaleString()}</span>
+              <span className="font-mono text-slate-light">
+                ${tournament.prizePool.toLocaleString()}
+              </span>
             </div>
             <div className="flex flex-col items-center space-y-2 rounded-lg border border-slate-light/10 bg-slate-dark/10 p-3">
               <Users className="h-4 w-4 text-slate-light" />
-              <span className="font-mono text-slate-light">{tournament.participants}</span>
+              <span className="font-mono text-slate-light">
+                {tournament.participants}
+              </span>
             </div>
             <div className="flex flex-col items-center space-y-2 rounded-lg border border-slate-light/10 bg-slate-dark/10 p-3">
               <Brain className="h-4 w-4 text-slate-light" />
-              <span className="font-mono text-slate-light">{tournament.aiAccuracy}%</span>
+              <span className="font-mono text-slate-light">
+                {tournament.aiAccuracy}%
+              </span>
             </div>
           </div>
-
+          <Dropzone />
           <Alert className="bg-slate-dark/20 border-slate-light/10">
             <p className="text-sm text-slate-light">
-              Prediction window closes in <span className="font-mono">{tournament.timeLeft}</span>. 
-              Results will be determined using Binance {tournament.currency} price.
+              Prediction window closes in{" "}
+              <span className="font-mono">{tournament.timeLeft}</span>. Results
+              will be determined using Binance {tournament.currency} price.
             </p>
           </Alert>
 
-          <Button 
+          <Button
             className="w-full bg-slate-light font-mono text-background transition-all duration-300 hover:bg-slate-dark hover:shadow-inner-glow"
             disabled={!predictionValue}
           >
