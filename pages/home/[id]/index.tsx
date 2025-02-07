@@ -1,10 +1,10 @@
 "use client"
 import { useRouter } from 'next/router'
-import TournamentEntry from '@/components/tournament-entry/tournament-entry'
+import MarketEntry from '@/components/market-entry/market-entry'
 
-export default function TournamentPage() {
+export default function MarketPage() {
   const router = useRouter()
   const { id } = router.query
 
-  return <TournamentEntry tournamentId={id as string} />
+  return <MarketEntry marketId={Number(id)} />
 }
