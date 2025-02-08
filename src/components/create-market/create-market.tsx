@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+"use client"
+
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -10,6 +12,8 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useCreateMarket } from '@/hooks/web3/rect/useCreateMarket';
 
 const CreateMarketForm = () => {
+  // Add mounted state to prevent hydration mismatch
+  const [mounted, setMounted] = useState(false);
   const { isConnected } = useAccount();
   const [formData, setFormData] = useState({
     marketId: '',
@@ -27,6 +31,11 @@ const CreateMarketForm = () => {
     isConfirmed,
     handleCreateMarket
   } = useCreateMarket();
+
+  // Set mounted state after component mounts
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,6 +61,22 @@ const CreateMarketForm = () => {
       [e.target.name]: e.target.value
     }));
   };
+
+  // Return null or loading state until component is mounted
+  if (!mounted) {
+    return (
+      <Card className="w-full max-w-xl mx-auto">
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold">Create New Market</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full max-w-xl mx-auto">
