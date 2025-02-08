@@ -5,51 +5,51 @@ import { PREDICTION_MARKET_ADDRESS } from '@/constants/contract-address';
 import RektABI from '@/abis/rekt/RektABI';
 
 export const useCreateMarket = () => {
-    const [isAlertOpen, setIsAlertOpen] = useState(false);
+  const [isAlertOpen, setIsAlertOpen] = useState(false);
 
-    const {
-        data: hash,
-        isPending,
-        writeContract
-    } = useWriteContract();
+  const {
+      data: hash,
+      isPending,
+      writeContract
+  } = useWriteContract();
 
-    const {
-        isLoading: isConfirming,
-        isSuccess: isConfirmed
-    } = useWaitForTransactionReceipt({
-        hash,
-    });
+  const {
+      isLoading: isConfirming,
+      isSuccess: isConfirmed
+  } = useWaitForTransactionReceipt({
+      hash,
+  });
 
-    const handleCreateMarket = async (
-        marketId: number,
-        startTime: number,
-        deadline: number,
-        participationFee: number,
-        name: string
-    ) => {
-        try {
-            await writeContract({
-                address: PREDICTION_MARKET_ADDRESS,
-                abi: RektABI,
-                functionName: 'createMarket',
-                args: [marketId, BigInt(startTime), BigInt(deadline), BigInt(participationFee), name],
-            });
+  const handleCreateMarket = async (
+      marketId: number,
+      startTime: number,
+      deadline: number,
+      participationFee: bigint, // Changed to bigint
+      name: string
+  ) => {
+      try {
+          await writeContract({
+              address: PREDICTION_MARKET_ADDRESS,
+              abi: RektABI,
+              functionName: 'createMarket',
+              args: [marketId, BigInt(startTime), BigInt(deadline), participationFee, name],
+          });
 
-            toast.success('Market created successfully');
-            setIsAlertOpen(true);
-        } catch (error) {
-            console.error('Transaction error:', error);
-            toast.error(error instanceof Error ? error.message : 'Failed to create market');
-        }
-    };
+          toast.success('Market created successfully');
+          setIsAlertOpen(true);
+      } catch (error) {
+          console.error('Transaction error:', error);
+          toast.error(error instanceof Error ? error.message : 'Failed to create market');
+      }
+  };
 
-    return {
-        isAlertOpen,
-        setIsAlertOpen,
-        hash,
-        isPending,
-        isConfirming,
-        isConfirmed,
-        handleCreateMarket
-    };
+  return {
+      isAlertOpen,
+      setIsAlertOpen,
+      hash,
+      isPending,
+      isConfirming,
+      isConfirmed,
+      handleCreateMarket
+  };
 };

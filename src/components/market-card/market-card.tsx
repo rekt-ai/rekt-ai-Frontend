@@ -109,7 +109,7 @@ export function MarketCard({ marketId }: MarketCardProps) {
                     </div>
                     
                     <Button
-                        onClick={() => router.push(`/market/${marketId}`)}
+                        onClick={() => router.push(`/home/${marketId}`)}
                         className="w-full bg-slate-light font-mono text-background hover:bg-slate-dark"
                         disabled={phase !== 1}
                     >
