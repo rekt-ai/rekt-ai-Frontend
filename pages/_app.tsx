@@ -12,30 +12,7 @@ import Footer from '@/components/footer/footer'
 import '../styles/globals.css'
 import { Header } from '@/components/header/header'
 
-const localChain: Chain = {
-  id: 1337,
-  name: 'Ganache',
-  nativeCurrency: {
-    decimals: 18,
-    name: 'Ganache Ether',
-    symbol: 'ETH'
-  },
-  rpcUrls: {
-    default: {
-      http: ['https://ganache.renakaagusta.dev']
-    },
-    public: {
-      http: ['https://ganache.renakaagusta.dev']
-    }
-  },
-  blockExplorers: {
-    default: {
-      name: 'Ganache Explorer',
-      url: 'https://ganache.renakaagusta.dev'
-    }
-  },
-  testnet: true
-}
+
 
 const queryClient = new QueryClient()
 
@@ -50,18 +27,18 @@ export default function MyApp({ Component, pageProps }: AppProps) {
             accentColorForeground: 'black'
           })}
         >
-          <ThemeProvider
+          {/* <ThemeProvider
             attribute="class"
             defaultTheme="system"
             value={{ light: 'light', dark: 'dark' }}
             disableTransitionOnChange
-          >
+          > */}
             {/* <div className='relative flex min-h-screen flex-col'> */}
               <Header />
               <Component {...pageProps} />
               {/* <Footer /> */}
             {/* </div> */}
-          </ThemeProvider>
+          {/* </ThemeProvider> */}
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
