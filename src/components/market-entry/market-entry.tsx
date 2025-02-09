@@ -5,12 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Trophy, Clock, Users, DollarSign } from "lucide-react"
-import { Alert } from "@/components/ui/alert"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { formatEther, parseEther } from "viem"
 import { DateTime } from "luxon"
 import { useMarketData, MarketPhase } from "@/hooks/web3/rect/useMarketData"
 import { useParticipateMarket } from "@/hooks/web3/rect/useParticipateMarket"
+import { usePlayerData } from "@/hooks/web3/rect/usePlayerData"
 import { useQuery } from "@tanstack/react-query"
+import { useAccount } from 'wagmi'
 import request from "graphql-request"
 import { REKT_SUBGRAPH_URL } from "@/constants/subgraph-url"
 import { queryMarketCreateds, queryMarketSettleds, queryMarketParticipations } from "@/graphql/rekt/rekt.query"
@@ -78,8 +80,10 @@ const getBadgeVariant = (
 
 export default function MarketEntry({ marketId }: MarketEntryProps) {
   const [predictionPrice, setPredictionPrice] = useState("")
+  const { address } = useAccount()
   const { marketData: contractData, marketState, loading: contractLoading, getPhaseText } = useMarketData(marketId)
-  const { handleParticipate, isPending } = useParticipateMarket()
+  const { handleParticipate, isPending, isConfirmed } = useParticipateMarket()
+  const { playerData, loading: playerDataLoading } = usePlayerData(marketId)
 
   // Fetch market creation data from subgraph
   const { data: createdData } = useQuery({
@@ -117,7 +121,7 @@ export default function MarketEntry({ marketId }: MarketEntryProps) {
     },
   })
 
-  if (contractLoading || !contractData || !marketState) {
+  if (contractLoading || !contractData || !marketState || playerDataLoading) {
     return (
       <div className="min-h-screen bg-background p-6">
         <Card className="max-w-2xl mx-auto">
@@ -139,6 +143,26 @@ export default function MarketEntry({ marketId }: MarketEntryProps) {
   }
 
   const renderActionSection = () => {
+    if (!address) {
+      return (
+        <Alert className="bg-primary/10 border-primary/50">
+          <AlertDescription>Please connect your wallet to participate</AlertDescription>
+        </Alert>
+      )
+    }
+
+    if (playerData?.hasParticipated) {
+      return (
+        <Alert className="bg-primary/10 border-primary/50">
+          <AlertDescription>
+            You have already submitted a prediction: {formatEther(playerData.predictionPrice)} USD
+            <br />
+            Submitted at: {DateTime.fromSeconds(Number(playerData.timestamp)).toLocaleString(DateTime.DATETIME_FULL)}
+          </AlertDescription>
+        </Alert>
+      )
+    }
+
     if (marketState.canParticipate) {
       return (
         <div className="space-y-4">
@@ -177,11 +201,11 @@ export default function MarketEntry({ marketId }: MarketEntryProps) {
     }
 
     const message =
-    marketState.phase === MarketPhase.LOCKED
-      ? "Market is currently locked"
-      : marketState.phase === MarketPhase.SETTLEMENT
-        ? "This market has ended"
-        : "Market status unknown"
+      marketState.phase === MarketPhase.LOCKED
+        ? "Market is currently locked"
+        : marketState.phase === MarketPhase.SETTLEMENT
+          ? "This market has ended"
+          : "Market status unknown"
 
     return (
       <Alert className="bg-accent">
@@ -254,4 +278,3 @@ export default function MarketEntry({ marketId }: MarketEntryProps) {
     </div>
   )
 }
-
