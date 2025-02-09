@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { toast } from 'sonner';
-import { PREDICTION_MARKET_ADDRESS } from '@/constants/contract-address';
+import { REKT_ADDRESS } from '@/constants/contract-address';
 import RektABI from '@/abis/rekt/RektABI';
 
 export const useParticipateMarket = () => {
@@ -28,7 +28,7 @@ export const useParticipateMarket = () => {
     ) => {
         try {
             await writeContract({
-                address: PREDICTION_MARKET_ADDRESS,
+                address: REKT_ADDRESS,
                 abi: RektABI,
                 functionName: 'participateInMarket',
                 args: [marketId, BigInt(predictionPrice), data],

@@ -1,15 +1,18 @@
 import { wagmiConfig } from "@/configs/wagmi";
-import { PREDICTION_MARKET_ADDRESS } from '@/constants/contract-address';
+import { REKT_ADDRESS } from '@/constants/contract-address';
 import RektABI from '@/abis/rekt/RektABI';
 import { readContract } from "@wagmi/core";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-interface UseMarketDataOptions {
-    debounceTime?: number;
-    enabled?: boolean;
+// Enum for market phases to make the code more type-safe
+export enum MarketPhase {
+    NOT_STARTED = 0,
+    OPEN = 1,
+    LOCKED = 2,
+    SETTLEMENT = 3
 }
 
-interface MarketData {
+export interface MarketData {
     startTime: bigint;
     deadline: bigint;
     entranceFee: bigint;
@@ -19,56 +22,57 @@ interface MarketData {
     name: string;
 }
 
+export interface MarketState {
+    phase: MarketPhase;
+    isSettled: boolean;
+    canParticipate: boolean;
+    canSettle: boolean;
+    isActive: boolean;
+}
+
+interface MarketDataOptions {
+    enabled?: boolean;
+}
+
 export const useMarketData = (
     marketId: number,
-    options: UseMarketDataOptions = {}
+    options: MarketDataOptions = {}
 ) => {
-    const { debounceTime = 1000, enabled = true } = options;
+    const { enabled = true } = options;
 
     const [marketData, setMarketData] = useState<MarketData | undefined>(undefined);
-    const [phase, setPhase] = useState<number | undefined>(undefined);
-    const [players, setPlayers] = useState<string[] | undefined>(undefined);
+    const [phase, setPhase] = useState<MarketPhase | undefined>(undefined);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
-    const [isStale, setIsStale] = useState(false);
 
-    const debounceTimeRef = useRef(debounceTime);
+    // Compute derived market state
+    const marketState: MarketState | undefined = phase !== undefined && marketData ? {
+        phase,
+        isSettled: marketData.settled,
+        canParticipate: phase === MarketPhase.OPEN && !marketData.settled,
+        canSettle: phase === MarketPhase.SETTLEMENT && !marketData.settled,
+        isActive: phase === MarketPhase.OPEN && !marketData.settled
+    } : undefined;
 
-    useEffect(() => {
-        debounceTimeRef.current = debounceTime;
-    }, [debounceTime]);
-
-    const fetchData = useCallback(async () => {
-        if (!enabled) {
-            setLoading(false);
-            return;
-        }
-
-        setLoading(true);
-        setError(null);
-        setIsStale(false);
+    const fetchContractData = useCallback(async () => {
+        if (!enabled) return;
 
         try {
-            const marketResult = await readContract(wagmiConfig, {
-                address: PREDICTION_MARKET_ADDRESS,
-                abi: RektABI,
-                functionName: 'markets',
-                args: [marketId],
-            }) as [bigint, bigint, bigint, bigint, bigint, boolean, string];
-
-            const phaseResult = await readContract(wagmiConfig, {
-                address: PREDICTION_MARKET_ADDRESS,
-                abi: RektABI,
-                functionName: 'getMarketPhase',
-                args: [marketId],
-            }) as number;
-
-            const playersResult = await readContract(wagmiConfig, {
-                address: PREDICTION_MARKET_ADDRESS,
-                abi: RektABI,
-                functionName: 'getPlayers',
-                args: [marketId],
-            }) as string[];
+            const [marketResult, phaseResult] = await Promise.all([
+                readContract(wagmiConfig, {
+                    address: REKT_ADDRESS,
+                    abi: RektABI,
+                    functionName: 'markets',
+                    args: [marketId],
+                }) as Promise<[bigint, bigint, bigint, bigint, bigint, boolean, string]>,
+                
+                readContract(wagmiConfig, {
+                    address: REKT_ADDRESS,
+                    abi: RektABI,
+                    functionName: 'getMarketPhase',
+                    args: [marketId],
+                }) as Promise<number>
+            ]);
 
             setMarketData({
                 startTime: marketResult[0],
@@ -79,51 +83,60 @@ export const useMarketData = (
                 settled: marketResult[5],
                 name: marketResult[6]
             });
-            setPhase(phaseResult);
-            setPlayers(playersResult);
+            setPhase(phaseResult as MarketPhase);
+
         } catch (err: unknown) {
             const error = err instanceof Error
                 ? err
                 : new Error('Failed to fetch market data');
             setError(error);
-            console.error('Error fetching market data:', error);
-        } finally {
-            setLoading(false);
+            console.error('Error fetching contract data:', error);
         }
     }, [marketId, enabled]);
 
-    const refreshData = useCallback(async () => {
-        await fetchData();
-    }, [fetchData]);
-
     useEffect(() => {
-        setIsStale(true);
-    }, [marketId]);
-
-    useEffect(() => {
-        let intervalId: NodeJS.Timeout | null = null;
-
-        if (enabled) {
-            fetchData();
-            intervalId = setInterval(() => {
-                refreshData();
-            }, 5000);
+        if (!enabled) {
+            setLoading(false);
+            return;
         }
 
-        return () => {
-            if (intervalId) {
-                clearInterval(intervalId);
-            }
-        };
-    }, [fetchData, refreshData, enabled]);
+        setLoading(true);
+        fetchContractData().finally(() => {
+            setLoading(false);
+        });
+    }, [fetchContractData, enabled]);
+
+    const refreshData = useCallback(async () => {
+        setLoading(true);
+        await fetchContractData();
+        setLoading(false);
+    }, [fetchContractData]);
+
+    // Helper functions for phase checks
+    const getPhaseText = useCallback((phase: MarketPhase | undefined) => {
+        if (phase === undefined) return "Unknown";
+        
+        switch(phase) {
+            case MarketPhase.NOT_STARTED:
+                return "Not Started";
+            case MarketPhase.OPEN:
+                return "Open";
+            case MarketPhase.LOCKED:
+                return "Locked";
+            case MarketPhase.SETTLEMENT:
+                return marketData?.settled ? "Settled" : "Settlement Pending";
+            default:
+                return "Unknown";
+        }
+    }, [marketData?.settled]);
 
     return {
         marketData,
         phase,
-        players,
+        marketState,
         loading,
         error,
         refreshData,
-        isStale
+        getPhaseText
     };
 };

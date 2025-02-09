@@ -10,9 +10,13 @@ import { Loader2, Wallet } from "lucide-react";
 import { useAccount } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useCreateMarket } from '@/hooks/web3/rect/useCreateMarket';
+import { useQuery } from '@tanstack/react-query';
+import request from 'graphql-request';
+import { REKT_SUBGRAPH_URL } from '@/constants/subgraph-url';
+import { queryMarketCreateds } from '@/graphql/rekt/rekt.query';
+import { MarketCreatedsData } from '@/types/web3/rekt/create-market';
 
 const CreateMarketForm = () => {
-  // Add mounted state to prevent hydration mismatch
   const [mounted, setMounted] = useState(false);
   const { isConnected } = useAccount();
   const [formData, setFormData] = useState({
@@ -21,6 +25,25 @@ const CreateMarketForm = () => {
     startTime: '',
     deadline: '',
     participationFee: ''
+  });
+
+  // Query existing markets to validate market ID with proper typing
+  const { data: existingMarkets, isLoading: marketsLoading } = useQuery<MarketCreatedsData>({
+    queryKey: ['marketCreateds'],
+    queryFn: async () => {
+      const currentTime = Math.floor(Date.now() / 1000);
+      return request(
+        REKT_SUBGRAPH_URL,
+        queryMarketCreateds,
+        {
+          first: 1000,
+          skip: 0,
+          deadline: currentTime
+        }
+      );
+    },
+    staleTime: 30000,
+    refetchOnWindowFocus: true
   });
 
   const {
@@ -32,37 +55,58 @@ const CreateMarketForm = () => {
     handleCreateMarket
   } = useCreateMarket();
 
-  // Set mounted state after component mounts
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const startTimestamp = Math.floor(new Date(formData.startTime).getTime() / 1000);
-    const deadlineTimestamp = Math.floor(new Date(formData.deadline).getTime() / 1000);
-    
-    // Convert ETH to Wei (1 ETH = 10^18 Wei)
-    const participationFeeWei = BigInt(Math.floor(parseFloat(formData.participationFee) * 1e18));
-    
-    await handleCreateMarket(
-      parseInt(formData.marketId),
-      startTimestamp,
-      deadlineTimestamp,
-      participationFeeWei,
-      formData.name
+  const validateMarketId = (marketId: string): boolean => {
+    if (!existingMarkets?.marketCreateds) return true;
+    return !existingMarkets.marketCreateds.some(
+      (market) => market.marketId === marketId
     );
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData(prev => ({
-      ...prev,
-      [e.target.name]: e.target.value
-    }));
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateMarketId(formData.marketId)) {
+      alert('Market ID already exists. Please choose a different ID.');
+      return;
+    }
+
+    const startTimestamp = Math.floor(new Date(formData.startTime).getTime() / 1000);
+    const deadlineTimestamp = Math.floor(new Date(formData.deadline).getTime() / 1000);
+    
+    const participationFeeWei = BigInt(Math.floor(parseFloat(formData.participationFee) * 1e18));
+    
+    try {
+      await handleCreateMarket(
+        parseInt(formData.marketId),
+        startTimestamp,
+        deadlineTimestamp,
+        participationFeeWei,
+        formData.name
+      );
+    } catch (error) {
+      console.error('Error creating market:', error);
+      alert('Failed to create market. Please try again.');
+    }
   };
 
-  // Return null or loading state until component is mounted
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+
+    if (name === 'marketId' && value && !validateMarketId(value)) {
+      e.target.setCustomValidity('Market ID already exists');
+    } else if (name === 'marketId') {
+      e.target.setCustomValidity('');
+    }
+  };
+
   if (!mounted) {
     return (
       <Card className="w-full max-w-xl mx-auto">
@@ -106,6 +150,11 @@ const CreateMarketForm = () => {
                 placeholder="Enter market ID"
                 className="w-full"
               />
+              {marketsLoading && (
+                <span className="text-xs text-muted-foreground">
+                  Checking market ID availability...
+                </span>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -167,7 +216,7 @@ const CreateMarketForm = () => {
             <Button 
               type="submit" 
               className="w-full" 
-              disabled={isPending || isConfirming}
+              disabled={isPending || isConfirming || marketsLoading}
             >
               {isPending || isConfirming ? (
                 <>
