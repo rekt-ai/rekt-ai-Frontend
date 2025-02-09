@@ -33,7 +33,6 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
     const { id, limit, offset } = req.query;
 
     if (id) {
-      // Get specific chat
       const chat = await prisma.chat.findUnique({
         where: { id: String(id) },
       });
@@ -42,35 +41,56 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
         return res.status(404).json({ error: "Chat not found" });
       }
 
-      return res.status(200).json(chat);
+      // Convert BigInt to string before sending response
+      return res.status(200).json({
+        ...chat,
+        timestamp: chat.timestamp.toString(),
+      });
     }
 
-    // Parse pagination parameters
-    const take = limit ? parseInt(limit.toString()) : 50;
-    const skip = offset ? parseInt(offset.toString()) : 0;
+    // Parse pagination parameters with better error handling
+    let take = 50;
+    let skip = 0;
+
+    try {
+      if (limit) take = parseInt(limit.toString());
+      if (offset) skip = parseInt(offset.toString());
+    } catch (parseError) {
+      console.error("Pagination parameter parsing error:", parseError);
+      return res.status(400).json({ error: "Invalid pagination parameters" });
+    }
 
     // Get paginated chats
     const chats = await prisma.chat.findMany({
       orderBy: {
-        timestamp: 'desc'  // Most recent chats first
+        timestamp: "desc",
       },
       take,
       skip,
     });
 
-    // Get total count for pagination
     const total = await prisma.chat.count();
 
+    // Convert BigInt to string for each chat
+    const serializedChats = chats.map((chat) => ({
+      ...chat,
+      timestamp: chat.timestamp.toString(),
+    }));
+
     return res.status(200).json({
-      chats,
+      chats: serializedChats,
       pagination: {
         total,
         limit: take,
         offset: skip,
       },
     });
-  } catch (error) {
-    return res.status(500).json({ error: "Failed to fetch chats" });
+  } catch (error: unknown) {
+    console.error("Error in handleGet:", error);
+    return res.status(500).json({
+      error: "Failed to fetch chats",
+      details: error instanceof Error ? error.message : undefined,
+    });
   }
 }
 
@@ -167,10 +187,13 @@ async function handleDelete(req: NextApiRequest, res: NextApiResponse) {
 }
 
 // New function to get chats by wallet address
-async function handleGetByWalletAddress(req: NextApiRequest, res: NextApiResponse) {
+async function handleGetByWalletAddress(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
   try {
     const { userAddress, limit, offset } = req.query;
-    
+
     if (!userAddress) {
       return res.status(400).json({ error: "Wallet address is required" });
     }
@@ -184,7 +207,7 @@ async function handleGetByWalletAddress(req: NextApiRequest, res: NextApiRespons
         userAddress: userAddress.toString(),
       },
       orderBy: {
-        timestamp: 'desc'  // Most recent chats first
+        timestamp: "desc", // Most recent chats first
       },
       take,
       skip,
@@ -205,8 +228,11 @@ async function handleGetByWalletAddress(req: NextApiRequest, res: NextApiRespons
         offset: skip,
       },
     });
-  } catch (error) {
-    console.error('Error fetching chats by wallet address:', error);
-    return res.status(500).json({ error: "Failed to fetch chats" });
+  } catch (error: unknown) {
+    console.error("Error fetching chats by wallet address:", error);
+    return res.status(500).json({
+      error: "Failed to fetch chats",
+      details: error instanceof Error ? error.message : undefined,
+    });
   }
 }
