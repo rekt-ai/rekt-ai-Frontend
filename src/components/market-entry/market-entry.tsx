@@ -1,131 +1,259 @@
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Brain, Clock, Users, DollarSign } from "lucide-react";
-import { Alert } from "@/components/ui/alert";
-import { formatEther, parseEther } from "viem";
-import { DateTime } from "luxon";
-import { useMarketData } from "@/hooks/web3/rect/useMarketData";
-import { useParticipateMarket } from "@/hooks/web3/rect/useParticipateMarket";
+"use client"
+
+import { useState } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Trophy, Clock, Users, DollarSign } from "lucide-react"
+import { Alert } from "@/components/ui/alert"
+import { formatEther, parseEther } from "viem"
+import { DateTime } from "luxon"
+import { useMarketData, MarketPhase } from "@/hooks/web3/rect/useMarketData"
+import { useParticipateMarket } from "@/hooks/web3/rect/useParticipateMarket"
+import { useQuery } from "@tanstack/react-query"
+import request from "graphql-request"
+import { REKT_SUBGRAPH_URL } from "@/constants/subgraph-url"
+import { queryMarketCreateds, queryMarketSettleds, queryMarketParticipations } from "@/graphql/rekt/rekt.query"
+import { Input } from "@/components/ui/input"
 
 interface MarketEntryProps {
-  marketId: number;
+  marketId: number
+}
+
+interface MarketCreatedResponse {
+  marketCreateds: {
+    id: string
+    marketId: string
+    name: string
+    startTime: string
+    deadline: string
+    blockTimestamp: string
+    blockNumber: string
+  }[]
+}
+
+interface MarketSettledResponse {
+  marketSettleds: {
+    id: string
+    marketId: string
+    finalPrice: string
+    predictionPrice: string
+    totalAmount: string
+    winner: string
+    transactionHash: string
+    blockTimestamp: string
+    blockNumber: string
+  }[]
+}
+
+interface MarketParticipationResponse {
+  marketParticipations: {
+    blockNumber: string
+    blockTimestamp: string
+    id: string
+    marketId: string
+    player: string
+    predictionPrice: string
+    transactionHash: string
+  }[]
+}
+
+const getBadgeVariant = (
+  phase: MarketPhase | undefined,
+  isSettled: boolean,
+): "default" | "secondary" | "destructive" | "outline" => {
+  if (phase === undefined) return "secondary"
+
+  switch (phase) {
+    case MarketPhase.OPEN:
+      return "default"
+    case MarketPhase.LOCKED:
+      return "outline"
+    case MarketPhase.SETTLEMENT:
+      return isSettled ? "secondary" : "destructive"
+    default:
+      return "secondary"
+  }
 }
 
 export default function MarketEntry({ marketId }: MarketEntryProps) {
-  const [predictionPrice, setPredictionPrice] = useState("");
-  const { marketData, phase, players, loading } = useMarketData(marketId);
-  const { handleParticipate, isPending } = useParticipateMarket();
+  const [predictionPrice, setPredictionPrice] = useState("")
+  const { marketData: contractData, marketState, loading: contractLoading, getPhaseText } = useMarketData(marketId)
+  const { handleParticipate, isPending } = useParticipateMarket()
 
-  if (loading || !marketData) return <div>Loading...</div>;
+  // Fetch market creation data from subgraph
+  const { data: createdData } = useQuery({
+    queryKey: ["marketCreated", marketId],
+    queryFn: async () => {
+      const response = await request<MarketCreatedResponse>(REKT_SUBGRAPH_URL, queryMarketCreateds, {
+        marketId: marketId.toString(),
+        first: 1,
+      })
+      return response.marketCreateds[0]
+    },
+  })
+
+  // Fetch participants from subgraph
+  const { data: participationsData } = useQuery({
+    queryKey: ["marketParticipations", marketId],
+    queryFn: async () => {
+      const response = await request<MarketParticipationResponse>(REKT_SUBGRAPH_URL, queryMarketParticipations, {
+        marketId: marketId.toString(),
+        first: 1000,
+      })
+      return response.marketParticipations
+    },
+  })
+
+  // Fetch settled data from subgraph
+  const { data: settledData } = useQuery({
+    queryKey: ["marketSettled", marketId],
+    queryFn: async () => {
+      const response = await request<MarketSettledResponse>(REKT_SUBGRAPH_URL, queryMarketSettleds, {
+        marketId: marketId.toString(),
+        first: 1,
+      })
+      return response.marketSettleds[0]
+    },
+  })
+
+  if (contractLoading || !contractData || !marketState) {
+    return (
+      <div className="min-h-screen bg-background p-6">
+        <Card className="max-w-2xl mx-auto">
+          <CardContent className="p-8">
+            <div className="flex items-center justify-center">
+              <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-primary" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   const handleSubmit = async () => {
-    if (!predictionPrice) return;
-    
-    const data = "0x" + "0".repeat(64); // Empty bytes32 data
-    await handleParticipate(
-      Number(marketId),
-      Number(parseEther(predictionPrice)),
-      data,
-      marketData.entranceFee // entranceFee is already bigint
-    );
-  };
+    if (!predictionPrice) return
 
-  const getPhaseText = (phase: number) => {
-    switch(phase) {
-      case 0: return "Not Started";
-      case 1: return "Open";
-      case 2: return "Locked";
-      case 3: return "Settled";
-      default: return "Unknown";
+    const data = "0x" + "0".repeat(64)
+    await handleParticipate(Number(marketId), Number(parseEther(predictionPrice)), data, contractData.entranceFee)
+  }
+
+  const renderActionSection = () => {
+    if (marketState.canParticipate) {
+      return (
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">Your Price Prediction</label>
+            <div className="flex gap-2">
+              <Input
+                type="text"
+                value={predictionPrice}
+                onChange={(e) => {
+                  const val = e.target.value
+                  if (val === "" || (!isNaN(Number(val)) && Number(val) >= 0)) {
+                    setPredictionPrice(val)
+                  }
+                }}
+                className="font-mono bg-white text-gray-800 border-gray-300 focus:border-primary"
+                placeholder="Enter price in USD"
+              />
+              <div className="flex items-center px-3 rounded-md bg-primary/10 font-mono text-primary">USD</div>
+            </div>
+          </div>
+
+          <Alert className="bg-primary/10 border-primary/50 text-primary">
+            <p className="text-sm">Entry fee: {formatEther(contractData.entranceFee)} ETH</p>
+          </Alert>
+
+          <Button
+            className="w-full bg-primary text-white hover:bg-primary/90"
+            disabled={!predictionPrice || isPending}
+            onClick={handleSubmit}
+          >
+            {isPending ? "Submitting..." : "Submit Prediction"}
+          </Button>
+        </div>
+      )
     }
-  };
+
+    const message =
+      marketState.phase === MarketPhase.NOT_STARTED
+        ? "This market has not started yet"
+        : marketState.phase === MarketPhase.LOCKED
+          ? "Market is currently locked"
+          : marketState.phase === MarketPhase.SETTLEMENT
+            ? "This market has ended"
+            : "Market status unknown"
+
+    return (
+      <Alert className="bg-accent">
+        <p className="text-sm">{message}</p>
+      </Alert>
+    )
+  }
+
+  const stats = [
+    {
+      icon: <Trophy className="h-4 w-4 text-primary" />,
+      value: `${formatEther(contractData.totalAmount)} ETH`,
+      label: "Prize Pool",
+    },
+    {
+      icon: <Users className="h-4 w-4 text-primary" />,
+      value: String(participationsData?.length || 0),
+      label: "Players",
+    },
+    {
+      icon: <DollarSign className="h-4 w-4 text-primary" />,
+      value: `${formatEther(contractData.entranceFee)} ETH`,
+      label: "Entry Fee",
+    },
+    {
+      icon: <Clock className="h-4 w-4 text-primary" />,
+      value: DateTime.fromSeconds(Number(contractData.deadline)).toRelative() || "Unknown",
+      label: "Ends",
+    },
+  ]
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <Card className="max-w-2xl mx-auto group relative overflow-hidden border-slate-light/10 bg-gradient-to-b from-card to-card/50">
-        <CardHeader className="relative border-b border-slate-light/10 bg-cyber-glow">
-          <div className="flex items-center justify-between">
-            <CardTitle className="line-clamp-1 font-mono text-slate-light">
-              {marketData.name}
-            </CardTitle>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white p-6">
+      <Card className="max-w-2xl mx-auto bg-white shadow-xl">
+        <CardHeader className="relative">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-bl-full"></div>
+          <div className="flex items-center justify-between mb-2 relative z-10">
+            <CardTitle className="text-2xl font-bold text-gray-800">{contractData.name}</CardTitle>
             <Badge
-              variant={phase === 1 ? "default" : "secondary"}
-              className="font-mono"
+              variant={getBadgeVariant(marketState.phase, marketState.isSettled)}
+              className="font-mono bg-primary/20 text-primary"
             >
-              {getPhaseText(phase ?? 0)}
+              {getPhaseText(marketState.phase)}
             </Badge>
           </div>
+          <p className="text-sm text-gray-600 relative z-10">
+            Enter your prediction for this market. Current total pool: {formatEther(contractData.totalAmount)} ETH
+          </p>
         </CardHeader>
-        <CardContent className="relative p-6">
-          <div className="flex flex-col space-y-6">
-            <div className="grid grid-cols-4 gap-4 text-sm">
-              <div className="flex flex-col items-center space-y-2 rounded-lg border border-slate-light/10 bg-slate-dark/10 p-3">
-                <DollarSign className="h-4 w-4 text-slate-light" />
-                <span className="font-mono text-slate-light">
-                  {formatEther(marketData.entranceFee)} ETH
-                </span>
-                <span className="text-xs text-muted-foreground">Entry Fee</span>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {stats.map((stat, index) => (
+              <div key={index} className="flex flex-col items-center p-3 rounded-lg bg-gray-50">
+                {stat.icon}
+                <span className="mt-2 font-mono font-medium text-primary">{stat.value}</span>
+                <span className="text-xs text-gray-500">{stat.label}</span>
               </div>
-              <div className="flex flex-col items-center space-y-2 rounded-lg border border-slate-light/10 bg-slate-dark/10 p-3">
-                <Users className="h-4 w-4 text-slate-light" />
-                <span className="font-mono text-slate-light">
-                  {players?.length || 0}
-                </span>
-                <span className="text-xs text-muted-foreground">Players</span>
-              </div>
-              <div className="flex flex-col items-center space-y-2 rounded-lg border border-slate-light/10 bg-slate-dark/10 p-3">
-                <Brain className="h-4 w-4 text-slate-light" />
-                <span className="font-mono text-slate-light">
-                  {formatEther(marketData.totalAmount)} ETH
-                </span>
-                <span className="text-xs text-muted-foreground">Total Pool</span>
-              </div>
-              <div className="flex flex-col items-center space-y-2 rounded-lg border border-slate-light/10 bg-slate-dark/10 p-3">
-                <Clock className="h-4 w-4 text-slate-light" />
-                <span className="font-mono text-slate-light">
-                  {DateTime.fromSeconds(Number(marketData.deadline)).toRelative()}
-                </span>
-                <span className="text-xs text-muted-foreground">Ends</span>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-light">Your Price Prediction</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={predictionPrice}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === "" || (!isNaN(Number(val)) && Number(val) >= 0)) {
-                      setPredictionPrice(val);
-                    }
-                  }}
-                  className="flex-1 rounded-md border border-slate-light/10 bg-slate-dark/10 p-2 font-mono text-slate-light focus:border-slate-light focus:outline-none"
-                  placeholder="Enter price in USD"
-                />
-                <span className="flex items-center font-mono text-slate-light">USD</span>
-              </div>
-            </div>
-
-            <Alert className="bg-slate-dark/20 border-slate-light/10">
-              <p className="text-sm text-slate-light">
-                Entry fee: {formatEther(marketData.entranceFee)} ETH
-              </p>
-            </Alert>
-
-            <Button
-              className="w-full bg-slate-light font-mono text-background hover:bg-slate-dark"
-              disabled={!predictionPrice || isPending || phase !== 1}
-              onClick={handleSubmit}
-            >
-              {isPending ? "Submitting..." : "Submit Prediction"}
-            </Button>
+            ))}
           </div>
+          <div className="flex gap-2 flex-wrap">
+            {[contractData.name.split(" ")[0], "Market", "Prediction"].map((tag, i) => (
+              <Badge key={i} variant="outline" className="bg-primary/10 text-primary border-primary/50">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+          {renderActionSection()}
         </CardContent>
       </Card>
     </div>
-  );
+  )
 }
+
