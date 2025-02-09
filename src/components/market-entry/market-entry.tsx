@@ -177,13 +177,11 @@ export default function MarketEntry({ marketId }: MarketEntryProps) {
     }
 
     const message =
-      marketState.phase === MarketPhase.NOT_STARTED
-        ? "This market has not started yet"
-        : marketState.phase === MarketPhase.LOCKED
-          ? "Market is currently locked"
-          : marketState.phase === MarketPhase.SETTLEMENT
-            ? "This market has ended"
-            : "Market status unknown"
+    marketState.phase === MarketPhase.LOCKED
+      ? "Market is currently locked"
+      : marketState.phase === MarketPhase.SETTLEMENT
+        ? "This market has ended"
+        : "Market status unknown"
 
     return (
       <Alert className="bg-accent">

@@ -6,10 +6,9 @@ import { useCallback, useEffect, useState } from "react";
 
 // Enum for market phases to make the code more type-safe
 export enum MarketPhase {
-    NOT_STARTED = 0,
-    OPEN = 1,
-    LOCKED = 2,
-    SETTLEMENT = 3
+    OPEN = 0,
+    LOCKED = 1,
+    SETTLEMENT = 2
 }
 
 export interface MarketData {
@@ -117,8 +116,6 @@ export const useMarketData = (
         if (phase === undefined) return "Unknown";
         
         switch(phase) {
-            case MarketPhase.NOT_STARTED:
-                return "Not Started";
             case MarketPhase.OPEN:
                 return "Open";
             case MarketPhase.LOCKED:
