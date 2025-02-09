@@ -101,20 +101,44 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse) {
 
     // Validate required fields
     if (!chatData || !timestamp || !userAddress) {
-      return res.status(400).json({ error: "Missing required fields" });
+      return res.status(400).json({
+        error: "Missing required fields",
+        missing: {
+          chatData: !chatData,
+          timestamp: !timestamp,
+          userAddress: !userAddress,
+        },
+      });
     }
 
+    // Ensure chatData is in the correct format
+    const processedChatData =
+      typeof chatData === "object" ? JSON.stringify(chatData) : chatData;
+
+    const newChat = {
+      chatData: processedChatData,
+      imageUrl,
+      timestamp: BigInt(timestamp),
+      userAddress,
+    };
+
     const chat = await prisma.chat.create({
-      data: {
-        chatData,
-        imageUrl,
-        timestamp: BigInt(timestamp),
-        userAddress,
-      },
+      data: newChat,
     });
 
-    return res.status(201).json(chat);
+    // Convert BigInt to string in the response
+    return res.status(201).json({
+      ...chat,
+      timestamp: chat.timestamp.toString(),
+    });
   } catch (error: unknown) {
+    // Detailed error logging
+    console.error("Detailed error in handlePost:", {
+      error,
+      message: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
     if (typeof error === "object" && error && "code" in error) {
       const prismaError = error as PrismaError;
       if (prismaError.code === "P2002") {
@@ -123,7 +147,13 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse) {
           .json({ error: "Chat with this ID already exists" });
       }
     }
-    return res.status(500).json({ error: "Failed to create chat" });
+
+    // Return more detailed error information
+    return res.status(500).json({
+      error: "Failed to create chat",
+      details: error instanceof Error ? error.message : "Unknown error",
+      type: error instanceof Error ? error.name : typeof error,
+    });
   }
 }
 
@@ -133,56 +163,126 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse) {
     const { id } = req.query;
     const { chatData, imageUrl, timestamp, userAddress } = req.body;
 
+    // Debug log incoming data
+    console.log("Update request:", {
+      id,
+      chatData,
+      imageUrl,
+      timestamp,
+      userAddress,
+    });
+
     if (!id) {
       return res.status(400).json({ error: "Chat ID is required" });
     }
 
+    // Process chatData if it exists
+    const processedChatData =
+      chatData && typeof chatData === "object"
+        ? JSON.stringify(chatData)
+        : chatData;
+
     const processedData = {
-      ...(chatData && { chatData }),
+      ...(processedChatData !== undefined && { chatData: processedChatData }),
       ...(imageUrl && { imageUrl }),
       ...(timestamp && { timestamp: BigInt(timestamp) }),
       ...(userAddress && { userAddress }),
     };
+
+    // Debug log processed data
+    console.log("Processed update data:", processedData);
 
     const chat = await prisma.chat.update({
       where: { id: String(id) },
       data: processedData,
     });
 
-    return res.status(200).json(chat);
+    // Convert BigInt to string in the response
+    return res.status(200).json({
+      ...chat,
+      timestamp: chat.timestamp.toString(),
+    });
   } catch (error: unknown) {
+    // Detailed error logging
+    console.error("Error in handlePut:", {
+      error,
+      message: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
     if (typeof error === "object" && error && "code" in error) {
       const prismaError = error as PrismaError;
       if (prismaError.code === "P2025") {
         return res.status(404).json({ error: "Chat not found" });
       }
     }
-    return res.status(500).json({ error: "Failed to update chat" });
+
+    return res.status(500).json({
+      error: "Failed to update chat",
+      details: error instanceof Error ? error.message : "Unknown error",
+      type: error instanceof Error ? error.name : typeof error,
+    });
   }
 }
 
 // Delete chat
 async function handleDelete(req: NextApiRequest, res: NextApiResponse) {
+  const { id } = req.query;
+  
   try {
-    const { id } = req.query;
-
+    // Debug log
+    console.log("Delete request for chat ID:", id);
+    
     if (!id) {
-      return res.status(400).json({ error: "Chat ID is required" });
+      return res.status(400).json({
+        error: "Chat ID is required",
+        details: "No ID provided in query parameters",
+      });
+    }
+
+    // Verify the chat exists before deleting
+    const existingChat = await prisma.chat.findUnique({
+      where: { id: String(id) },
+    });
+
+    if (!existingChat) {
+      return res.status(404).json({
+        error: "Chat not found",
+        details: `No chat found with ID: ${id}`,
+      });
     }
 
     await prisma.chat.delete({
       where: { id: String(id) },
     });
 
-    return res.status(200).json({ message: "Chat deleted successfully" });
+    return res.status(200).json({
+      message: "Chat deleted successfully",
+      deletedChatId: id,
+    });
   } catch (error: unknown) {
+    // Detailed error logging
+    console.error("Error in handleDelete:", {
+      error,
+      message: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
     if (typeof error === "object" && error && "code" in error) {
       const prismaError = error as PrismaError;
       if (prismaError.code === "P2025") {
-        return res.status(404).json({ error: "Chat not found" });
+        return res.status(404).json({
+          error: "Chat not found",
+          details: `Unable to delete chat with ID: ${id}`,
+        });
       }
     }
-    return res.status(500).json({ error: "Failed to delete chat" });
+
+    return res.status(500).json({
+      error: "Failed to delete chat",
+      details: error instanceof Error ? error.message : "Unknown error",
+      type: error instanceof Error ? error.name : typeof error,
+    });
   }
 }
 
@@ -195,12 +295,33 @@ async function handleGetByWalletAddress(
     const { userAddress, limit, offset } = req.query;
 
     if (!userAddress) {
-      return res.status(400).json({ error: "Wallet address is required" });
+      return res.status(400).json({
+        error: "Wallet address is required",
+        details: "userAddress parameter is missing",
+      });
     }
 
-    // Parse pagination parameters
-    const take = limit ? parseInt(limit.toString()) : 50;
-    const skip = offset ? parseInt(offset.toString()) : 0;
+    // Parse pagination parameters with error handling
+    let take = 50;
+    let skip = 0;
+
+    try {
+      if (limit) take = parseInt(limit.toString());
+      if (offset) skip = parseInt(offset.toString());
+
+      // Validate pagination parameters
+      if (take < 0 || skip < 0) {
+        throw new Error("Pagination parameters must be positive numbers");
+      }
+    } catch (parseError) {
+      return res.status(400).json({
+        error: "Invalid pagination parameters",
+        details:
+          parseError instanceof Error
+            ? parseError.message
+            : "Invalid number format",
+      });
+    }
 
     const chats = await prisma.chat.findMany({
       where: {
@@ -220,19 +341,37 @@ async function handleGetByWalletAddress(
       },
     });
 
+    // Convert BigInt timestamps to strings
+    const serializedChats = chats.map((chat) => ({
+      ...chat,
+      timestamp: chat.timestamp.toString(),
+      chatData:
+        typeof chat.chatData === "string"
+          ? JSON.parse(chat.chatData)
+          : chat.chatData,
+    }));
+
     return res.status(200).json({
-      chats,
+      chats: serializedChats,
       pagination: {
         total,
         limit: take,
         offset: skip,
+        hasMore: skip + take < total,
       },
+      userAddress,
     });
   } catch (error: unknown) {
-    console.error("Error fetching chats by wallet address:", error);
+    console.error("Error fetching chats by wallet address:", {
+      error,
+      message: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
     return res.status(500).json({
       error: "Failed to fetch chats",
-      details: error instanceof Error ? error.message : undefined,
+      details: error instanceof Error ? error.message : "Unknown error",
+      type: error instanceof Error ? error.name : typeof error,
     });
   }
 }
