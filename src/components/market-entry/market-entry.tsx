@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Trophy, Clock, Users, DollarSign } from "lucide-react"
+import { Trophy, Clock, Users, DollarSign, Hexagon } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { formatEther, parseEther } from "viem"
 import { DateTime } from "luxon"
@@ -17,6 +17,7 @@ import request from "graphql-request"
 import { REKT_SUBGRAPH_URL } from "@/constants/subgraph-url"
 import { queryMarketCreateds, queryMarketSettleds, queryMarketParticipations } from "@/graphql/rekt/rekt.query"
 import { Input } from "@/components/ui/input"
+import { PredictionChat } from "../prediction-chats/prediction-card"
 
 interface MarketEntryProps {
   marketId: number
@@ -82,17 +83,18 @@ export default function MarketEntry({ marketId }: MarketEntryProps) {
   const [predictionPrice, setPredictionPrice] = useState("")
   const { address } = useAccount()
   const { marketData: contractData, marketState, loading: contractLoading, getPhaseText } = useMarketData(marketId)
-  const { handleParticipate, isPending, isConfirmed } = useParticipateMarket()
+  const { handleParticipate, isPending, isConfirming, isConfirmed } = useParticipateMarket()
   const { playerData, loading: playerDataLoading } = usePlayerData(marketId)
 
   // Fetch market creation data from subgraph
   const { data: createdData } = useQuery({
     queryKey: ["marketCreated", marketId],
     queryFn: async () => {
-      const response = await request<MarketCreatedResponse>(REKT_SUBGRAPH_URL, queryMarketCreateds, {
-        marketId: marketId.toString(),
-        first: 1,
-      })
+      const response = await request<MarketCreatedResponse>(
+        REKT_SUBGRAPH_URL,
+        queryMarketCreateds,
+        { marketId: marketId.toString(), first: 1 }
+      )
       return response.marketCreateds[0]
     },
   })
@@ -101,10 +103,11 @@ export default function MarketEntry({ marketId }: MarketEntryProps) {
   const { data: participationsData } = useQuery({
     queryKey: ["marketParticipations", marketId],
     queryFn: async () => {
-      const response = await request<MarketParticipationResponse>(REKT_SUBGRAPH_URL, queryMarketParticipations, {
-        marketId: marketId.toString(),
-        first: 1000,
-      })
+      const response = await request<MarketParticipationResponse>(
+        REKT_SUBGRAPH_URL,
+        queryMarketParticipations,
+        { marketId: marketId.toString(), first: 1000 }
+      )
       return response.marketParticipations
     },
   })
@@ -113,21 +116,22 @@ export default function MarketEntry({ marketId }: MarketEntryProps) {
   const { data: settledData } = useQuery({
     queryKey: ["marketSettled", marketId],
     queryFn: async () => {
-      const response = await request<MarketSettledResponse>(REKT_SUBGRAPH_URL, queryMarketSettleds, {
-        marketId: marketId.toString(),
-        first: 1,
-      })
+      const response = await request<MarketSettledResponse>(
+        REKT_SUBGRAPH_URL,
+        queryMarketSettleds,
+        { marketId: marketId.toString(), first: 1 }
+      )
       return response.marketSettleds[0]
     },
   })
 
   if (contractLoading || !contractData || !marketState || playerDataLoading) {
     return (
-      <div className="min-h-screen bg-background p-6">
-        <Card className="max-w-2xl mx-auto">
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 p-6">
+        <Card className="max-w-2xl mx-auto bg-gradient-to-br from-gray-900 to-gray-800 border-none">
           <CardContent className="p-8">
             <div className="flex items-center justify-center">
-              <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-primary" />
+              <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-purple-500" />
             </div>
           </CardContent>
         </Card>
@@ -135,17 +139,51 @@ export default function MarketEntry({ marketId }: MarketEntryProps) {
     )
   }
 
-  const handleSubmit = async () => {
-    if (!predictionPrice) return
+  // MarketEntry.tsx
+const handleSubmit = async () => {
+  if (!predictionPrice) return
 
-    const data = "0x" + "0".repeat(64)
-    await handleParticipate(Number(marketId), Number(parseEther(predictionPrice)), data, contractData.entranceFee)
+  try {
+    // Properly format the data parameter as a hex string
+    const data = `0x${`0`.repeat(64)}` as `0x${string}`
+    
+    // Submit to smart contract
+    await handleParticipate(
+      Number(marketId),
+      Number(parseEther(predictionPrice)),
+      data,
+      contractData.entranceFee
+    )
+
+    // If smart contract submission successful, post to chat
+    if (address) {
+      const chatData = {
+        marketId,
+        predictionPrice,
+        timestamp: Math.floor(Date.now() / 1000)
+      }
+
+      await fetch('/api/chats', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          chatData,
+          timestamp: Math.floor(Date.now() / 1000).toString(),
+          userAddress: address
+        }),
+      })
+    }
+  } catch (error) {
+    console.error('Error in submission:', error)
   }
+}
 
   const renderActionSection = () => {
     if (!address) {
       return (
-        <Alert className="bg-primary/10 border-primary/50">
+        <Alert className="bg-purple-500/10 border-purple-500/20 text-purple-300">
           <AlertDescription>Please connect your wallet to participate</AlertDescription>
         </Alert>
       )
@@ -153,11 +191,12 @@ export default function MarketEntry({ marketId }: MarketEntryProps) {
 
     if (playerData?.hasParticipated) {
       return (
-        <Alert className="bg-primary/10 border-primary/50">
+        <Alert className="bg-purple-500/10 border-purple-500/20 text-purple-300">
           <AlertDescription>
             You have already submitted a prediction: {formatEther(playerData.predictionPrice)} USD
             <br />
-            Submitted at: {DateTime.fromSeconds(Number(playerData.timestamp)).toLocaleString(DateTime.DATETIME_FULL)}
+            Submitted at: {DateTime.fromSeconds(Number(playerData.timestamp))
+              .toLocaleString(DateTime.DATETIME_FULL)}
           </AlertDescription>
         </Alert>
       )
@@ -167,7 +206,7 @@ export default function MarketEntry({ marketId }: MarketEntryProps) {
       return (
         <div className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Your Price Prediction</label>
+            <label className="text-sm font-medium text-purple-300">Your Price Prediction</label>
             <div className="flex gap-2">
               <Input
                 type="text"
@@ -178,22 +217,25 @@ export default function MarketEntry({ marketId }: MarketEntryProps) {
                     setPredictionPrice(val)
                   }
                 }}
-                className="font-mono bg-white text-gray-800 border-gray-300 focus:border-primary"
+                className="font-mono bg-gray-800 text-purple-300 border-purple-500/20 focus:border-purple-500"
                 placeholder="Enter price in USD"
               />
-              <div className="flex items-center px-3 rounded-md bg-primary/10 font-mono text-primary">USD</div>
+              <div className="flex items-center px-3 rounded-md bg-purple-500/10 font-mono text-purple-300">
+                USD
+              </div>
             </div>
           </div>
 
-          <Alert className="bg-primary/10 border-primary/50 text-primary">
+          <Alert className="bg-purple-500/10 border-purple-500/20 text-purple-300">
             <p className="text-sm">Entry fee: {formatEther(contractData.entranceFee)} ETH</p>
           </Alert>
 
           <Button
-            className="w-full bg-primary text-white hover:bg-primary/90"
+            className="w-full bg-purple-600 text-white hover:bg-purple-700 transition-colors duration-300"
             disabled={!predictionPrice || isPending}
             onClick={handleSubmit}
           >
+            <Hexagon className="w-4 h-4 mr-2" />
             {isPending ? "Submitting..." : "Submit Prediction"}
           </Button>
         </div>
@@ -208,66 +250,74 @@ export default function MarketEntry({ marketId }: MarketEntryProps) {
           : "Market status unknown"
 
     return (
-      <Alert className="bg-accent">
-        <p className="text-sm">{message}</p>
+      <Alert className="bg-purple-500/10 border-purple-500/20 text-purple-300">
+        <AlertDescription>{message}</AlertDescription>
       </Alert>
     )
   }
 
   const stats = [
     {
-      icon: <Trophy className="h-4 w-4 text-primary" />,
+      icon: <Trophy className="h-4 w-4 text-purple-400" />,
       value: `${formatEther(contractData.totalAmount)} ETH`,
       label: "Prize Pool",
     },
     {
-      icon: <Users className="h-4 w-4 text-primary" />,
+      icon: <Users className="h-4 w-4 text-purple-400" />,
       value: String(participationsData?.length || 0),
       label: "Players",
     },
     {
-      icon: <DollarSign className="h-4 w-4 text-primary" />,
+      icon: <DollarSign className="h-4 w-4 text-purple-400" />,
       value: `${formatEther(contractData.entranceFee)} ETH`,
       label: "Entry Fee",
     },
     {
-      icon: <Clock className="h-4 w-4 text-primary" />,
+      icon: <Clock className="h-4 w-4 text-purple-400" />,
       value: DateTime.fromSeconds(Number(contractData.deadline)).toRelative() || "Unknown",
       label: "Ends",
     },
   ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white p-6">
-      <Card className="max-w-2xl mx-auto bg-white shadow-xl">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 p-6">
+      {/* Market Details Card */}
+      <Card className="max-w-2xl mx-auto bg-gradient-to-br from-gray-900 to-gray-800 shadow-xl border-none">
         <CardHeader className="relative">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-bl-full"></div>
+          <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-bl-full"></div>
           <div className="flex items-center justify-between mb-2 relative z-10">
-            <CardTitle className="text-2xl font-bold text-gray-800">{contractData.name}</CardTitle>
+            <CardTitle className="text-2xl font-bold text-white">{contractData.name}</CardTitle>
             <Badge
               variant={getBadgeVariant(marketState.phase, marketState.isSettled)}
-              className="font-mono bg-primary/20 text-primary"
+              className="font-mono bg-purple-500/20 text-purple-300"
             >
               {getPhaseText(marketState.phase)}
             </Badge>
           </div>
-          <p className="text-sm text-gray-600 relative z-10">
+          <p className="text-sm text-gray-400 relative z-10">
             Enter your prediction for this market. Current total pool: {formatEther(contractData.totalAmount)} ETH
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {stats.map((stat, index) => (
-              <div key={index} className="flex flex-col items-center p-3 rounded-lg bg-gray-50">
+              <div
+                key={index}
+                className="flex flex-col items-center p-3 rounded-lg bg-gray-800/50 border border-purple-500/20"
+              >
                 {stat.icon}
-                <span className="mt-2 font-mono font-medium text-primary">{stat.value}</span>
+                <span className="mt-2 font-mono font-medium text-purple-300">{stat.value}</span>
                 <span className="text-xs text-gray-500">{stat.label}</span>
               </div>
             ))}
           </div>
           <div className="flex gap-2 flex-wrap">
             {[contractData.name.split(" ")[0], "Market", "Prediction"].map((tag, i) => (
-              <Badge key={i} variant="outline" className="bg-primary/10 text-primary border-primary/50">
+              <Badge
+                key={i}
+                variant="outline"
+                className="bg-purple-500/10 text-purple-300 border-purple-500/50"
+              >
                 {tag}
               </Badge>
             ))}
@@ -275,6 +325,9 @@ export default function MarketEntry({ marketId }: MarketEntryProps) {
           {renderActionSection()}
         </CardContent>
       </Card>
+
+      {/* Prediction Chat Section */}
+      <PredictionChat marketId={marketId} />
     </div>
   )
 }

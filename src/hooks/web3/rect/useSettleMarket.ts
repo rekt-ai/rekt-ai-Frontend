@@ -22,19 +22,31 @@ export const useSettleMarket = () => {
 
     const handleSettle = async (marketId: number, finalPrice: number) => {
         try {
+            if (!marketId || finalPrice < 0) {
+                throw new Error('Invalid settlement parameters');
+            }
+
             await writeContract({
                 address: REKT_ADDRESS,
                 abi: RektABI,
                 functionName: 'settleMarket',
-                args: [marketId, BigInt(finalPrice)],
+                args: [BigInt(marketId), BigInt(finalPrice)],
             });
 
             toast.success('Market settled successfully');
             setIsAlertOpen(true);
         } catch (error) {
-            console.error('Transaction error:', error);
-            toast.error(error instanceof Error ? error.message : 'Failed to settle market');
+            console.error('Settlement error:', error);
+            const errorMessage = error instanceof Error
+                ? error.message
+                : 'Failed to settle market';
+            toast.error(errorMessage);
+            throw error; // Re-throw for the caller to handle if needed
         }
+    };
+
+    const resetState = () => {
+        setIsAlertOpen(false);
     };
 
     return {
@@ -44,6 +56,7 @@ export const useSettleMarket = () => {
         isPending,
         isConfirming,
         isConfirmed,
-        handleSettle
+        handleSettle,
+        resetState
     };
 };

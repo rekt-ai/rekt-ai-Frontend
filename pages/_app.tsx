@@ -12,8 +12,6 @@ import Footer from '@/components/footer/footer'
 import '../styles/globals.css'
 import { Header } from '@/components/header/header'
 
-
-
 const queryClient = new QueryClient()
 
 export default function MyApp({ Component, pageProps }: AppProps) {

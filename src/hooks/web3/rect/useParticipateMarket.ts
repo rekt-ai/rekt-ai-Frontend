@@ -23,15 +23,19 @@ export const useParticipateMarket = () => {
     const handleParticipate = async (
         marketId: number,
         predictionPrice: number,
-        data: string,
+        data: `0x${string}`, // bytes32 type
         value: bigint
     ) => {
         try {
+            if (!marketId || predictionPrice < 0) {
+                throw new Error('Invalid market parameters');
+            }
+
             await writeContract({
                 address: REKT_ADDRESS,
                 abi: RektABI,
                 functionName: 'participateInMarket',
-                args: [marketId, BigInt(predictionPrice), data],
+                args: [BigInt(marketId), BigInt(predictionPrice), data],
                 value,
             });
 
@@ -39,7 +43,11 @@ export const useParticipateMarket = () => {
             setIsAlertOpen(true);
         } catch (error) {
             console.error('Transaction error:', error);
-            toast.error(error instanceof Error ? error.message : 'Failed to participate in market');
+            const errorMessage = error instanceof Error
+                ? error.message
+                : 'Failed to participate in market';
+            toast.error(errorMessage);
+            throw error; // Re-throw for the caller to handle if needed
         }
     };
 

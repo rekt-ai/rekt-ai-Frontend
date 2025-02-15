@@ -8,48 +8,47 @@ export const useCreateMarket = () => {
   const [isAlertOpen, setIsAlertOpen] = useState(false);
 
   const {
-      data: hash,
-      isPending,
-      writeContract
+    data: hash,
+    isPending,
+    writeContract
   } = useWriteContract();
 
   const {
-      isLoading: isConfirming,
-      isSuccess: isConfirmed
+    isLoading: isConfirming,
+    isSuccess: isConfirmed
   } = useWaitForTransactionReceipt({
-      hash,
+    hash,
   });
 
   const handleCreateMarket = async (
-      marketId: number,
-      startTime: number,
-      deadline: number,
-      participationFee: bigint, // Changed to bigint
-      name: string
+    startTime: number,
+    deadline: number,
+    participationFee: bigint,
+    name: string
   ) => {
-      try {
-          await writeContract({
-              address: REKT_ADDRESS,
-              abi: RektABI,
-              functionName: 'createMarket',
-              args: [marketId, BigInt(startTime), BigInt(deadline), participationFee, name],
-          });
+    try {
+      await writeContract({
+        address: REKT_ADDRESS,
+        abi: RektABI,
+        functionName: 'createMarket',
+        args: [BigInt(startTime), BigInt(deadline), participationFee, name],
+      });
 
-          toast.success('Market created successfully');
-          setIsAlertOpen(true);
-      } catch (error) {
-          console.error('Transaction error:', error);
-          toast.error(error instanceof Error ? error.message : 'Failed to create market');
-      }
+      toast.success('Market created successfully');
+      setIsAlertOpen(true);
+    } catch (error) {
+      console.error('Transaction error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to create market');
+    }
   };
 
   return {
-      isAlertOpen,
-      setIsAlertOpen,
-      hash,
-      isPending,
-      isConfirming,
-      isConfirmed,
-      handleCreateMarket
+    isAlertOpen,
+    setIsAlertOpen,
+    hash,
+    isPending,
+    isConfirming,
+    isConfirmed,
+    handleCreateMarket
   };
 };

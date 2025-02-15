@@ -1,45 +1,34 @@
 import { gql } from "graphql-request";
 
 export const queryMarketCreateds = gql`
-  query QueryMarketCreateds($first: Int, $skip: Int, $deadline: Int, $marketId: String) {
+  query QueryMarketCreateds($first: Int, $skip: Int) {
     marketCreateds(
       first: $first
-      orderBy: startTime
-      orderDirection: desc
       skip: $skip
+      orderBy: blockTimestamp
+      orderDirection: desc
       where: { 
-        deadline_lt: $deadline_lt,
-        deadline_gt: $deadline_gt,
-        marketId: $marketId,
-        startTime: $startTime,
-        deadline: $deadline,
-        blockTimestamp: $blockTimestamp
+        blockTimestamp_gt: ${Math.floor(Date.now() / 1000) - (14 * 24 * 60 * 60)}
       }
     ) {
       id
-      marketId
-      name
       startTime
       deadline
-      blockTimestamp
       blockNumber
     }
   }
 `;
 
 export const queryMarketSettleds = gql`
-  query QueryMarketSettleds($blockTimestamp: Int, $first: Int, $marketId: String) {
+  query QueryMarketSettleds($first: Int, $marketId: String) {
     marketSettleds(
+      first: $first
       orderBy: blockTimestamp
-      orderDirection: asc
+      orderDirection: desc
       where: { 
         marketId: $marketId,
-        blockTimestamp_gt: $blockTimestamp,
-        winner_not: 0,
-        totalAmount: "",
-        winner: ""
+        winner_not: "0x0000000000000000000000000000000000000000"
       }
-      first: $first
     ) {
       id
       marketId
@@ -58,8 +47,8 @@ export const queryMarketParticipations = gql`
   query QueryMarketParticipations($first: Int, $marketId: String) {
     marketParticipations(
       first: $first
-      orderBy: id
-      orderDirection: asc
+      orderBy: blockTimestamp
+      orderDirection: desc
       where: { marketId: $marketId }
     ) {
       blockNumber
@@ -74,11 +63,12 @@ export const queryMarketParticipations = gql`
 `;
 
 export const queryWithdrawBalances = gql`
-  query QueryWithdrawBalances($first: Int) {
+  query QueryWithdrawBalances($first: Int, $user: String) {
     withdrawBalances(
       first: $first
-      orderBy: id
-      orderDirection: asc
+      orderBy: blockTimestamp
+      orderDirection: desc
+      where: { user: $user }
     ) {
       amount
       blockNumber
@@ -94,8 +84,8 @@ export const queryOwnershipTransferreds = gql`
   query QueryOwnershipTransferreds($first: Int) {
     ownershipTransferreds(
       first: $first
-      orderBy: id
-      orderDirection: asc
+      orderBy: blockTimestamp
+      orderDirection: desc
     ) {
       blockNumber
       blockTimestamp
@@ -106,5 +96,3 @@ export const queryOwnershipTransferreds = gql`
     }
   }
 `;
-
-

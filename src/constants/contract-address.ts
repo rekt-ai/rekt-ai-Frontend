@@ -2,4 +2,10 @@ export const IDRT_ADDRESS = "0x078cC2Af3Cdd9Bd242f336c3d20Ee2F29C891106";
 export const USDT_ADDRESS = "0x4361e5c43A1c432736F1d32F35057C5B4817CA6D";
 export const WETH_ADDRESS = "0x0e79cA1feF90db0e8FebFF37735EADDad62621aA";
 
-export const REKT_ADDRESS="0xc7d9feb7d4591bbbdce342085308f3c4cb81b783";
+export const NETWORK_ADDRESSES = {
+    31337: "0xc4cebf58836707611439e23996f4fa4165ea6a28", // Local development
+    84532: "0x5641214dfb3a7a12731825193ad999b12303e706", // Base Sepolia
+    421614: "0xe3b19b212375e31d3b7138ce86cc7706c7d36329", // Arbitrum Sepolia
+}
+
+export const REKT_ADDRESS = "0xe3b19b212375e31d3b7138ce86cc7706c7d36329" // Arbitrum Sepolia
